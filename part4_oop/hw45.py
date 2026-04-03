@@ -89,18 +89,19 @@ class LFUPolicy(Policy[K]):
 
     def register_access(self, key: K) -> None:
         if key in self._key_counter:
-            self._key_counter[key] += 1
+            current_count = self._key_counter.get(key, 0)
+            self._key_counter.update({key: current_count + 1})
             self._key_to_evict = None
             return
 
         if len(self._key_counter) >= self.capacity and self._key_counter:
-            self._key_to_evict = min(self._key_counter, key=lambda current_key: self._key_counter[current_key])
+            self._key_to_evict = min(self._key_counter, key=self._get_access_count)
         else:
             self._key_to_evict = None
 
         self._key_counter[key] = 1
 
-    def get_key_to_evict(self) -> K | None:
+    def get_key_to_evict(self) -> K | None:  # noqa: WPS615
         return self._key_to_evict
 
     def remove_key(self, key: K) -> None:
@@ -115,6 +116,9 @@ class LFUPolicy(Policy[K]):
     @property
     def has_keys(self) -> bool:
         return bool(self._key_counter)
+
+    def _get_access_count(self, key: K) -> int:
+        return self._key_counter[key]
 
 
 class MIPTCache(Cache[K, V]):
