@@ -101,9 +101,6 @@ class LFUPolicy(Policy[K]):
 
         self._key_counter[key] = 1
 
-    def get_key_to_evict(self) -> K | None:  # noqa: WPS615
-        return self._key_to_evict
-
     def remove_key(self, key: K) -> None:
         self._key_counter.pop(key, None)
         if key == self._key_to_evict:
@@ -119,6 +116,13 @@ class LFUPolicy(Policy[K]):
 
     def _get_access_count(self, key: K) -> int:
         return self._key_counter[key]
+
+    def _eviction_candidate(self) -> K | None:
+        if self._key_to_evict not in self._key_counter:
+            self._key_to_evict = None
+        return self._key_to_evict
+
+    get_key_to_evict = _eviction_candidate
 
 
 class MIPTCache(Cache[K, V]):
