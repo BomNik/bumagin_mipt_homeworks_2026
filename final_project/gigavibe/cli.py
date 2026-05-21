@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from enum import Enum
+from typing import Protocol
 
 
 class CommandKind(Enum):
@@ -16,6 +17,31 @@ class ParsedCommand:
     text: str
 
 
+class ConsoleProtocol(Protocol):
+    def read(self, prompt: str = '>>> ') -> str: ...
+
+    def write(self, text: str) -> None: ...
+
+    def write_part(self, text: str) -> None: ...
+
+    def clear(self) -> None: ...
+
+
+class Console:
+    def read(self, prompt: str = '>>> ') -> str:
+        return input(prompt)
+
+    def write(self, text: str) -> None:
+        print(text)
+
+    def write_part(self, text: str) -> None:
+        print(text, end='', flush=True)
+
+    def clear(self) -> None:
+        command = 'cls' if os.name == 'nt' else 'clear'
+        os.system(command)
+
+
 def parse_command(user_input: str) -> ParsedCommand:
     stripped_input = user_input.strip()
 
@@ -27,15 +53,3 @@ def parse_command(user_input: str) -> ParsedCommand:
         return ParsedCommand(kind=CommandKind.FILE_CHUNK, text=stripped_input)
 
     return ParsedCommand(kind=CommandKind.CHAT, text=user_input)
-
-
-class Console:
-    def read(self, prompt: str = '>>> ') -> str:
-        return input(prompt)
-
-    def write(self, text: str) -> None:
-        print(text)
-
-    def clear(self) -> None:
-        command = 'cls' if os.name == 'nt' else 'clear'
-        os.system(command)

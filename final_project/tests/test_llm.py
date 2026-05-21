@@ -23,6 +23,21 @@ class FakeResponse:
     choices: list[FakeChoice]
 
 
+@dataclass
+class FakeStreamDelta:
+    content: str | None = None
+
+
+@dataclass
+class FakeStreamChoice:
+    delta: FakeStreamDelta
+
+
+@dataclass
+class FakeStreamChunk:
+    choices: list[FakeStreamChoice]
+
+
 class FakeCompletions:
     def __init__(self, response: object | Exception) -> None:
         self.response = response
@@ -34,12 +49,14 @@ class FakeCompletions:
         model: str,
         messages: list[dict[str, str]],
         temperature: float,
+        stream: bool = False,
     ) -> object:
         self.calls.append(
             {
                 'model': model,
                 'messages': messages,
                 'temperature': temperature,
+                'stream': stream,
             },
         )
         if isinstance(self.response, Exception):
@@ -86,6 +103,7 @@ def test_complete_sends_model_temperature_and_messages() -> None:
                 {'role': 'user', 'content': 'Hi'},
             ],
             'temperature': 0.3,
+            'stream': False,
         },
     ]
 
@@ -111,5 +129,39 @@ def test_complete_wraps_client_errors() -> None:
 
     with pytest.raises(LLMError, match='model request failed') as raised:
         llm.complete([Message(role='user', content='Hi')])
+
+    assert raised.value.__cause__ is client_error
+
+
+def test_stream_complete_sends_stream_true_and_yields_text_parts() -> None:
+    completions = FakeCompletions(
+        [
+            FakeStreamChunk([FakeStreamChoice(FakeStreamDelta('Hel'))]),
+            FakeStreamChunk([FakeStreamChoice(FakeStreamDelta(None))]),
+            FakeStreamChunk([FakeStreamChoice(FakeStreamDelta('lo'))]),
+            FakeStreamChunk([]),
+        ],
+    )
+    llm = OpenAICompatibleLLM(make_config(), client=FakeClient(completions))
+
+    result = list(llm.stream_complete([Message(role='user', content='Hi')]))
+
+    assert result == ['Hel', 'lo']
+    assert completions.calls == [
+        {
+            'model': 'gemma3',
+            'messages': [{'role': 'user', 'content': 'Hi'}],
+            'temperature': 0.3,
+            'stream': True,
+        },
+    ]
+
+
+def test_stream_complete_wraps_client_errors() -> None:
+    client_error = RuntimeError('connection refused')
+    llm = OpenAICompatibleLLM(make_config(), client=FakeClient(FakeCompletions(client_error)))
+
+    with pytest.raises(LLMError, match='streaming model request failed') as raised:
+        list(llm.stream_complete([Message(role='user', content='Hi')]))
 
     assert raised.value.__cause__ is client_error

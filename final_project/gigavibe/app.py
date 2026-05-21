@@ -1,26 +1,12 @@
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
 
 from gigavibe.chunking import chunk_text, parse_filechunk_command
-from gigavibe.cli import CommandKind, Console, parse_command
+from gigavibe.cli import CommandKind, Console, ConsoleProtocol, parse_command
 from gigavibe.config import AppConfig, load_config
 from gigavibe.context import ChatHistory, Message
 from gigavibe.errors import ChunkingError, ConfigError, FileAttachmentError, LLMError
 from gigavibe.files import replace_file_mentions
-from gigavibe.llm import InputMessage, OpenAICompatibleLLM
-
-
-class ConsoleProtocol(Protocol):
-    def read(self, prompt: str = '>>> ') -> str: ...
-
-    def write(self, text: str) -> None: ...
-
-    def clear(self) -> None: ...
-
-
-class LLMProtocol(Protocol):
-    def complete(self, messages: Sequence[InputMessage]) -> str: ...
+from gigavibe.llm import InputMessage, LLMProtocol, OpenAICompatibleLLM
 
 
 class ChatApplication:
@@ -119,7 +105,10 @@ class ChatApplication:
         )
 
         try:
-            assistant_response = self._llm.complete(outgoing_messages)
+            response_parts: list[str] = []
+            for text_part in self._llm.stream_complete(outgoing_messages):
+                self._console.write_part(text_part)
+                response_parts.append(text_part)
         except KeyboardInterrupt:
             self._console.write('Request interrupted.')
             return
@@ -127,8 +116,13 @@ class ChatApplication:
             self._console.write(f'LLM error: {error}')
             return
 
+        assistant_response = ''.join(response_parts)
+        if not assistant_response:
+            self._console.write('LLM error: empty streaming response from model')
+            return
+
         self._history.add_assistant(assistant_response)
-        self._console.write(assistant_response)
+        self._console.write('')
 
 
 def build_outgoing_messages(system_prompt: str, history: list[Message]) -> list[InputMessage]:

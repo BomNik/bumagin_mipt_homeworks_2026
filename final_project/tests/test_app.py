@@ -10,8 +10,13 @@ from gigavibe.llm import InputMessage
 
 
 class FakeLLM:
-    def __init__(self, response: str | BaseException = 'assistant response') -> None:
+    def __init__(
+        self,
+        response: str | BaseException = 'assistant response',
+        stream_parts: list[str] | BaseException | None = None,
+    ) -> None:
         self.response = response
+        self.stream_parts = stream_parts
         self.calls: list[list[InputMessage]] = []
 
     def complete(self, messages: Sequence[InputMessage]) -> str:
@@ -20,15 +25,31 @@ class FakeLLM:
             raise self.response
         return self.response
 
+    def stream_complete(self, messages: Sequence[InputMessage]) -> Sequence[str]:
+        self.calls.append(list(messages))
+        if isinstance(self.stream_parts, BaseException):
+            raise self.stream_parts
+        if self.stream_parts is not None:
+            return self.stream_parts
+        if isinstance(self.response, BaseException):
+            raise self.response
+        return [self.response]
+
 
 @dataclass
 class FakeConsole:
     outputs: list[str]
     inputs: list[str] | None = None
+    parts: list[str] | None = None
     clear_count: int = 0
 
     def write(self, text: str) -> None:
         self.outputs.append(text)
+
+    def write_part(self, text: str) -> None:
+        if self.parts is None:
+            self.parts = []
+        self.parts.append(text)
 
     def read(self, prompt: str = '>>> ') -> str:
         if self.inputs is None:
@@ -78,7 +99,7 @@ def test_build_outgoing_messages_skips_empty_system_prompt() -> None:
 
 def test_handle_user_input_sends_chat_and_saves_assistant_response() -> None:
     history = ChatHistory()
-    llm = FakeLLM('Hi')
+    llm = FakeLLM(stream_parts=['H', 'i'])
     console = FakeConsole([])
     app = ChatApplication(make_config(), llm, history=history, console=console)
 
@@ -95,13 +116,14 @@ def test_handle_user_input_sends_chat_and_saves_assistant_response() -> None:
         Message(role='user', content='Hello'),
         Message(role='assistant', content='Hi'),
     ]
-    assert console.outputs == ['Hi']
+    assert console.parts == ['H', 'i']
+    assert console.outputs == ['']
 
 
 def test_handle_user_input_replaces_file_mentions_before_sending(tmp_path: Path) -> None:
     source_file = tmp_path / 'main.py'
     source_file.write_text('print(1)\n', encoding='utf-8')
-    llm = FakeLLM('done')
+    llm = FakeLLM(stream_parts=['done'])
     app = ChatApplication(make_config(), llm, console=FakeConsole([]))
 
     app.handle_user_input(f'Check @::{source_file}::')
@@ -143,7 +165,7 @@ def test_llm_error_does_not_add_assistant_message() -> None:
     console = FakeConsole([])
     app = ChatApplication(
         make_config(),
-        FakeLLM(LLMError('model request failed')),
+        FakeLLM(stream_parts=LLMError('streaming model request failed')),
         history=history,
         console=console,
     )
@@ -151,7 +173,7 @@ def test_llm_error_does_not_add_assistant_message() -> None:
     app.handle_user_input('Hello')
 
     assert history.to_list() == [Message(role='user', content='Hello')]
-    assert console.outputs == ['LLM error: model request failed']
+    assert console.outputs == ['LLM error: streaming model request failed']
 
 
 def test_keyboard_interrupt_during_llm_request_is_handled() -> None:
@@ -159,7 +181,23 @@ def test_keyboard_interrupt_during_llm_request_is_handled() -> None:
     console = FakeConsole([])
     app = ChatApplication(
         make_config(),
-        FakeLLM(KeyboardInterrupt()),
+        FakeLLM(stream_parts=KeyboardInterrupt()),
+        history=history,
+        console=console,
+    )
+
+    app.handle_user_input('Hello')
+
+    assert history.to_list() == [Message(role='user', content='Hello')]
+    assert console.outputs == ['Request interrupted.']
+
+
+def test_keyboard_interrupt_during_streaming_does_not_save_partial_response() -> None:
+    history = ChatHistory()
+    console = FakeConsole([])
+    app = ChatApplication(
+        make_config(),
+        FakeLLM(stream_parts=KeyboardInterrupt()),
         history=history,
         console=console,
     )
