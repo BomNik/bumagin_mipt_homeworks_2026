@@ -33,3 +33,7 @@ class FileAttachmentError(Exception):
 
 class LLMError(Exception):
     """The model request failed or returned an invalid response."""
+
+
+class ChunkingError(Exception):
+    """File chunk command or chunk generation is invalid."""

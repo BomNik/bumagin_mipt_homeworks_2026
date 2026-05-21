@@ -2,10 +2,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
+from gigavibe.chunking import chunk_text, parse_filechunk_command
 from gigavibe.cli import CommandKind, Console, parse_command
 from gigavibe.config import AppConfig, load_config
 from gigavibe.context import ChatHistory, Message
-from gigavibe.errors import ConfigError, FileAttachmentError, LLMError
+from gigavibe.errors import ChunkingError, ConfigError, FileAttachmentError, LLMError
 from gigavibe.files import replace_file_mentions
 from gigavibe.llm import InputMessage, OpenAICompatibleLLM
 
@@ -51,9 +52,52 @@ class ChatApplication:
             self._history.clear()
             self._console.clear()
             return True
+        if command.kind is CommandKind.FILE_CHUNK:
+            self._handle_filechunk_command(command.text)
+            return True
 
         self._handle_chat_message(command.text)
         return True
+
+    def _handle_filechunk_command(self, command_text: str) -> None:
+        try:
+            options = parse_filechunk_command(command_text)
+            self._console.write('Enter file path:')
+            file_path = Path(self._console.read(''))
+            text = file_path.read_text(encoding='utf-8')
+            chunks = chunk_text(text, options)
+        except (ChunkingError, OSError, UnicodeDecodeError) as error:
+            self._console.write(f'File chunk error: {error}')
+            return
+
+        self._console.write('Accepted. What should be done for each chunk?')
+        user_prompt = self._console.read('')
+        self._console.write('Accepted. Starting chunk processing:')
+
+        for index, chunk in enumerate(chunks):
+            if index > 0 and not options.auto_confirm:
+                next_input = self._console.read('')
+                if next_input == r'\q':
+                    self._console.write('File processing stopped.')
+                    return
+
+            self._process_chunk(user_prompt, chunk)
+
+        self._console.write('File processing complete.')
+
+    def _process_chunk(self, user_prompt: str, chunk: str) -> None:
+        try:
+            response = self._llm.complete(
+                [Message(role='user', content=f'{user_prompt}\n\n{chunk}')],
+            )
+        except KeyboardInterrupt:
+            self._console.write('Request interrupted.')
+            return
+        except LLMError as error:
+            self._console.write(f'LLM error: {error}')
+            return
+
+        self._console.write(response)
 
     def _handle_chat_message(self, user_input: str) -> None:
         try:

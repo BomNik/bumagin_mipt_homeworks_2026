@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from gigavibe.app import ChatApplication, build_outgoing_messages, default_config_path
+from gigavibe.app import ChatApplication, build_outgoing_messages
 from gigavibe.config import AppConfig
 from gigavibe.context import ChatHistory, Message
 from gigavibe.errors import LLMError
@@ -24,13 +24,16 @@ class FakeLLM:
 @dataclass
 class FakeConsole:
     outputs: list[str]
+    inputs: list[str] | None = None
     clear_count: int = 0
 
     def write(self, text: str) -> None:
         self.outputs.append(text)
 
     def read(self, prompt: str = '>>> ') -> str:
-        raise AssertionError('FakeConsole.read should not be called in these tests')
+        if self.inputs is None:
+            raise AssertionError('FakeConsole.read should not be called in these tests')
+        return self.inputs.pop(0)
 
     def clear(self) -> None:
         self.clear_count += 1
@@ -165,3 +168,57 @@ def test_keyboard_interrupt_during_llm_request_is_handled() -> None:
 
     assert history.to_list() == [Message(role='user', content='Hello')]
     assert console.outputs == ['Request interrupted.']
+
+
+def test_filechunk_auto_mode_processes_all_chunks_without_chat_history(tmp_path: Path) -> None:
+    source_file = tmp_path / 'book.txt'
+    source_file.write_text('A\nB\nC', encoding='utf-8')
+    history = ChatHistory([Message(role='user', content='old')])
+    llm = FakeLLM('summary')
+    console = FakeConsole(
+        [],
+        inputs=[
+            str(source_file),
+            'Summarize',
+        ],
+    )
+    app = ChatApplication(make_config(), llm, history=history, console=console)
+
+    app.handle_user_input('/filechunk paragraph=2 -y')
+
+    assert history.to_list() == [Message(role='user', content='old')]
+    assert llm.calls == [
+        [Message(role='user', content='Summarize\n\nA\nB')],
+        [Message(role='user', content='Summarize\n\nC')],
+    ]
+    assert console.outputs == [
+        'Enter file path:',
+        'Accepted. What should be done for each chunk?',
+        'Accepted. Starting chunk processing:',
+        'summary',
+        'summary',
+        'File processing complete.',
+    ]
+
+
+def test_filechunk_manual_mode_waits_for_empty_input_between_chunks(tmp_path: Path) -> None:
+    source_file = tmp_path / 'book.txt'
+    source_file.write_text('A\nB', encoding='utf-8')
+    llm = FakeLLM('summary')
+    console = FakeConsole(
+        [],
+        inputs=[
+            str(source_file),
+            'Summarize',
+            '',
+        ],
+    )
+    app = ChatApplication(make_config(), llm, console=console)
+
+    app.handle_user_input('/filechunk')
+
+    assert llm.calls == [
+        [Message(role='user', content='Summarize\n\nA')],
+        [Message(role='user', content='Summarize\n\nB')],
+    ]
+    assert console.outputs[-1] == 'File processing complete.'

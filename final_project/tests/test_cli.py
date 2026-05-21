@@ -9,6 +9,20 @@ def test_parse_command_recognizes_reset() -> None:
     assert parse_command('/reset') == ParsedCommand(kind=CommandKind.RESET, text='')
 
 
+def test_parse_command_recognizes_filechunk() -> None:
+    assert parse_command('/filechunk paragraph=3 -y') == ParsedCommand(
+        kind=CommandKind.FILE_CHUNK,
+        text='/filechunk paragraph=3 -y',
+    )
+
+
+def test_parse_command_recognizes_file_chunk_alias() -> None:
+    assert parse_command('/file_chunk') == ParsedCommand(
+        kind=CommandKind.FILE_CHUNK,
+        text='/file_chunk',
+    )
+
+
 def test_parse_command_treats_regular_text_as_chat() -> None:
     assert parse_command('hello') == ParsedCommand(
         kind=CommandKind.CHAT,
