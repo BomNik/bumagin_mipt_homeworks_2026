@@ -23,6 +23,13 @@ def test_parse_command_recognizes_file_chunk_alias() -> None:
     )
 
 
+def test_parse_command_recognizes_file_chunk_alias_with_options() -> None:
+    assert parse_command('/file_chunk paragraph=3 -y') == ParsedCommand(
+        kind=CommandKind.FILE_CHUNK,
+        text='/file_chunk paragraph=3 -y',
+    )
+
+
 def test_parse_command_treats_regular_text_as_chat() -> None:
     assert parse_command('hello') == ParsedCommand(
         kind=CommandKind.CHAT,

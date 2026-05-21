@@ -79,7 +79,7 @@ class OpenAICompatibleLLM:
                 if text_part:
                     yield text_part
         except Exception as error:
-            raise LLMError('streaming model request failed') from error
+            raise LLMError(f'streaming model request failed: {error}') from error
 
 
 def _message_to_dict(message: InputMessage) -> ChatMessage:

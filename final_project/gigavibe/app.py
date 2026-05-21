@@ -5,7 +5,7 @@ from gigavibe.cli import CommandKind, Console, ConsoleProtocol, parse_command
 from gigavibe.config import AppConfig, load_config
 from gigavibe.context import ChatHistory, Message
 from gigavibe.errors import ChunkingError, ConfigError, FileAttachmentError, LLMError
-from gigavibe.files import replace_file_mentions
+from gigavibe.files import read_text_file, replace_file_mentions
 from gigavibe.llm import InputMessage, LLMProtocol, OpenAICompatibleLLM
 
 
@@ -50,9 +50,9 @@ class ChatApplication:
             options = parse_filechunk_command(command_text)
             self._console.write('Enter file path:')
             file_path = Path(self._console.read(''))
-            text = file_path.read_text(encoding='utf-8')
+            text = read_text_file(file_path)
             chunks = chunk_text(text, options)
-        except (ChunkingError, OSError, UnicodeDecodeError) as error:
+        except (ChunkingError, FileAttachmentError) as error:
             self._console.write(f'File chunk error: {error}')
             return
 
@@ -111,14 +111,17 @@ class ChatApplication:
                 response_parts.append(text_part)
         except KeyboardInterrupt:
             self._console.write('Request interrupted.')
+            self._history.remove_last()
             return
         except LLMError as error:
             self._console.write(f'LLM error: {error}')
+            self._history.remove_last()
             return
 
         assistant_response = ''.join(response_parts)
         if not assistant_response:
             self._console.write('LLM error: empty streaming response from model')
+            self._history.remove_last()
             return
 
         self._history.add_assistant(assistant_response)

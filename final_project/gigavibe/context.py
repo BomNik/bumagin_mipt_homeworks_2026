@@ -30,6 +30,10 @@ class ChatHistory:
     def clear(self) -> None:
         self._messages.clear()
 
+    def remove_last(self) -> None:
+        if self._messages:
+            self._messages.pop()
+
     def to_list(self) -> list[Message]:
         return list(self._messages)
 

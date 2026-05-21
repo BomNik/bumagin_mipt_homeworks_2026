@@ -99,6 +99,15 @@ def test_missing_file_and_environment_is_reported(tmp_path: Path) -> None:
     assert errors['config'].message == 'provide config.yaml or environment variables'
 
 
+def test_config_path_that_is_directory_is_reported_as_config_error(tmp_path: Path) -> None:
+    with pytest.raises(ExceptionGroup) as raised:
+        load_config(tmp_path)
+
+    errors = collect_config_errors(raised.value)
+    assert errors['config'].message == 'cannot read config file'
+    assert errors['config'].value == str(tmp_path)
+
+
 @pytest.mark.parametrize('temperature', ['-0.1', '1.5', 'not-a-float'])
 def test_invalid_temperature_is_rejected(tmp_path: Path, temperature: str) -> None:
     config_path = write_config(

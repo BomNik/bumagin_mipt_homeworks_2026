@@ -172,7 +172,7 @@ def test_llm_error_does_not_add_assistant_message() -> None:
 
     app.handle_user_input('Hello')
 
-    assert history.to_list() == [Message(role='user', content='Hello')]
+    assert history.to_list() == []
     assert console.outputs == ['LLM error: streaming model request failed']
 
 
@@ -188,7 +188,7 @@ def test_keyboard_interrupt_during_llm_request_is_handled() -> None:
 
     app.handle_user_input('Hello')
 
-    assert history.to_list() == [Message(role='user', content='Hello')]
+    assert history.to_list() == []
     assert console.outputs == ['Request interrupted.']
 
 
@@ -204,7 +204,7 @@ def test_keyboard_interrupt_during_streaming_does_not_save_partial_response() ->
 
     app.handle_user_input('Hello')
 
-    assert history.to_list() == [Message(role='user', content='Hello')]
+    assert history.to_list() == []
     assert console.outputs == ['Request interrupted.']
 
 
