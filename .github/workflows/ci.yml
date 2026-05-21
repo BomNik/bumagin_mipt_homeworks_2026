@@ -22,8 +22,6 @@ on:
       - 'final_project/**'
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - 'final_project/**'
 
 jobs:
   detect-changes:
@@ -75,12 +73,23 @@ jobs:
         run: uv sync --group lint --group test
 
       - name: Run ruff check
-        run: uv run ruff check "${{ matrix.folder }}"
+        run: |
+          if [ "${{ matrix.folder }}" = "final_project" ]; then
+            uv run ruff check --config final_project/ruff.toml final_project
+          else
+            uv run ruff check "${{ matrix.folder }}"
+          fi
 
       - name: Run ruff format
-        run: uv run ruff format --check "${{ matrix.folder }}"
+        run: |
+          if [ "${{ matrix.folder }}" = "final_project" ]; then
+            uv run ruff format --check --config final_project/ruff.toml final_project
+          else
+            uv run ruff format --check "${{ matrix.folder }}"
+          fi
 
       - name: Run wemake-python-styleguide
+        if: ${{ matrix.folder != 'final_project' }}
         run: uv run flake8 "${{ matrix.folder }}"
 
   typecheck:
