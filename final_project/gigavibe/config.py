@@ -33,7 +33,10 @@ def load_config(path: Path | str) -> AppConfig:
     raw_values: dict[str, str] = {}
 
     if config_path.exists():
-        raw_values.update(parse_flat_yaml(config_path))
+        try:
+            raw_values.update(parse_flat_yaml(config_path))
+        except ConfigError as error:
+            raise ExceptionGroup('Invalid configuration', [error]) from error
 
     raw_values.update(_read_environment_values())
     if not raw_values:
@@ -80,8 +83,12 @@ def load_config(path: Path | str) -> AppConfig:
 
 def parse_flat_yaml(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except OSError as error:
+        raise ConfigError('config', 'cannot read config file', str(path)) from error
 
-    for line_number, raw_line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1):
+    for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
         if not line or line.startswith('#'):
             continue
