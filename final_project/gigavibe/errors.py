@@ -29,3 +29,7 @@ class FileAttachmentError(Exception):
         if self.path is None:
             return self.message
         return f'{self.path}: {self.message}'
+
+
+class LLMError(Exception):
+    """The model request failed or returned an invalid response."""

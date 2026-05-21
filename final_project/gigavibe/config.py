@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from .errors import ConfigError
+from gigavibe.errors import ConfigError
 
 ENV_TO_CONFIG_KEY = {
     'API_KEY': 'api_key',
