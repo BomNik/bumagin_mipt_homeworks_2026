@@ -49,7 +49,13 @@ def parse_command(user_input: str) -> ParsedCommand:
         return ParsedCommand(kind=CommandKind.EXIT, text='')
     if stripped_input == '/reset':
         return ParsedCommand(kind=CommandKind.RESET, text='')
-    if stripped_input == '/file_chunk' or stripped_input.startswith('/filechunk'):
+    if _is_filechunk_command(stripped_input):
         return ParsedCommand(kind=CommandKind.FILE_CHUNK, text=stripped_input)
 
     return ParsedCommand(kind=CommandKind.CHAT, text=user_input)
+
+
+def _is_filechunk_command(stripped_input: str) -> bool:
+    return stripped_input in {'/filechunk', '/file_chunk'} or stripped_input.startswith(
+        ('/filechunk ', '/file_chunk '),
+    )
