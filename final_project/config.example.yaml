@@ -1,0 +1,7 @@
+api_key: ollama
+api_host: http://localhost:11434/v1/
+model: gemma3
+limit_message: 20
+limit_chars: 2000
+temperature: 0.2
+system_prompt: You are a helpful console assistant. Answer clearly and concisely.
